@@ -2,7 +2,15 @@
 
 [![](https://jitpack.io/v/skry-be/skrybe-sdk-java.svg)](https://jitpack.io/#skry-be/skrybe-sdk-java)
 
-A Java SDK for interacting with the Skrybe email marketing platform API. This SDK provides easy access to Skrybe's features including email sending, campaign management, subscriber management, and more.
+A modern, type-safe Java SDK for interacting with the Skrybe email marketing platform API. This SDK provides easy access to Skrybe's features with proper error handling, input validation, and builder patterns for complex operations.
+
+## ✨ Features
+
+- **Type Safety**: Strongly typed models instead of generic Maps
+- **Builder Pattern**: Easy-to-use builder for complex operations like campaign creation
+- **Input Validation**: Built-in validation with helpful error messages
+- **Proper Exception Handling**: Custom exceptions with detailed error information
+- **Modern Java**: Uses latest Java HTTP client and follows current best practices
 
 ## Installation
 
@@ -45,82 +53,198 @@ SkrybeSDK sdk = new SkrybeSDK("YOUR_API_KEY");
 SkrybeSDK sdk = new SkrybeSDK("YOUR_API_KEY", "https://your-custom-url.com");
 ```
 
-### Send an Email
-
-```java
-Map<String, Object> emailOptions = new HashMap<>();
-emailOptions.put("fromName", "John Doe");
-emailOptions.put("fromEmail", "john@example.com");
-emailOptions.put("subject", "Welcome!");
-emailOptions.put("htmlText", "<h1>Welcome to our platform!</h1>");
-emailOptions.put("to", Arrays.asList("recipient@example.com"));
-
-sdk.sendEmail(emailOptions);
-```
-
-### Create a Campaign
-
-```java
-Map<String, Object> campaignOptions = new HashMap<>();
-campaignOptions.put("fromName", "John Doe");
-campaignOptions.put("fromEmail", "john@example.com");
-campaignOptions.put("title", "Monthly Newsletter");
-campaignOptions.put("subject", "Your Monthly Update");
-campaignOptions.put("htmlText", "<h1>Monthly Newsletter</h1>");
-campaignOptions.put("listIds", Arrays.asList("list-id-1", "list-id-2"));
-
-sdk.createCampaign(campaignOptions);
-```
-
 ### Manage Lists
 
 ```java
-// Get all lists
-List<Map<String, Object>> lists = sdk.getLists();
+import com.skrybe.sdk.SkrybeSDK;
+import com.skrybe.sdk.model.SkrybeList;
+import com.skrybe.sdk.exception.SkrybeException;
 
-// Get lists including hidden ones
-List<Map<String, Object>> allLists = sdk.getLists(true);
+try {
+    // Get all lists (now returns proper SkrybeList objects!)
+    List<SkrybeList> lists = sdk.getLists();
+    
+    // Work with type-safe objects
+    for (SkrybeList list : lists) {
+        System.out.println("List ID: " + list.getId());
+        System.out.println("List Name: " + list.getName());
+    }
+    
+} catch (SkrybeException e) {
+    System.err.println("API error: " + e.getMessage());
+}
 ```
 
 ### Work with Subscribers
 
 ```java
-// Get subscribers from a list
-Map<String, Object> options = new HashMap<>();
-options.put("page", 1);
-options.put("limit", 100);
-List<Map<String, Object>> subscribers = sdk.getSubscribers("list-id", options);
+import com.skrybe.sdk.model.Subscriber;
+import com.skrybe.sdk.exception.ValidationException;
 
-// Add a subscriber to a list
-Map<String, Object> subscriberData = new HashMap<>();
-subscriberData.put("email", "new@example.com");
-subscriberData.put("name", "New User");
-sdk.addSubscriber("list-id", subscriberData);
-```
-
-## Error Handling
-
-The SDK throws `SkrybeException` for API-related errors and `ValidationException` for validation errors:
-
-```java
 try {
-    sdk.sendEmail(emailOptions);
+    // Get subscribers from a specific list (with validation!)
+    List<Subscriber> subscribers = sdk.getSubscribers("your-list-id");
+    
+    // Work with type-safe Subscriber objects
+    for (Subscriber subscriber : subscribers) {
+        System.out.println("Email: " + subscriber.getEmail());
+        System.out.println("Name: " + subscriber.getName());
+        System.out.println("List ID: " + subscriber.getListId());
+    }
+    
 } catch (ValidationException e) {
-    // Handle validation errors
     System.err.println("Validation error: " + e.getMessage());
 } catch (SkrybeException e) {
-    // Handle API errors
     System.err.println("API error: " + e.getMessage());
 }
 ```
 
-## Rate Limiting
+### Create a Campaign (New Builder Pattern!)
 
-The SDK automatically handles rate limiting with a minimum interval of 100ms between requests.
+```java
+import com.skrybe.sdk.model.CampaignRequest;
+import com.skrybe.sdk.model.CampaignResponse;
+
+try {
+    // Use the fluent builder pattern - much cleaner than 11 parameters!
+    CampaignRequest request = CampaignRequest.builder()
+        .title("Monthly Newsletter")
+        .fromName("John Doe")
+        .fromEmail("john@example.com")
+        .replyTo("support@example.com")  // Optional - defaults to fromEmail
+        .subject("Your Monthly Update")
+        .htmlText("<h1>Welcome to our newsletter!</h1><p>Great content here...</p>")
+        .plainText("Welcome to our newsletter! Great content here...")  // Optional
+        .addListId("list-id-1")
+        .addListId("list-id-2")
+        // Or use: .listIds(Arrays.asList("list-id-1", "list-id-2"))
+        .sendCampaign(false)  // false = save as draft, true = send immediately
+        .trackOpens(true)     // Default: true
+        .trackClicks(true)    // Default: true
+        .build();  // Validates all required fields!
+
+    CampaignResponse response = sdk.createCampaign(request);
+    
+    if (response.isSuccess()) {
+        System.out.println("Campaign created successfully!");
+        System.out.println("Response: " + response.getResponse());
+    } else {
+        System.err.println("Campaign creation failed with status: " + response.getStatusCode());
+    }
+    
+} catch (IllegalArgumentException e) {
+    // Builder validation errors
+    System.err.println("Invalid campaign data: " + e.getMessage());
+} catch (ValidationException e) {
+    // API validation errors
+    System.err.println("Validation error: " + e.getMessage());
+} catch (SkrybeException e) {
+    // Network or API errors
+    System.err.println("API error: " + e.getMessage());
+}
+```
+
+### Get Campaigns
+
+```java
+import com.skrybe.sdk.model.Campaign;
+
+try {
+    // Get all campaigns (now returns proper Campaign objects!)
+    List<Campaign> campaigns = sdk.getCampaigns();
+    
+    for (Campaign campaign : campaigns) {
+        System.out.println("Campaign ID: " + campaign.getId());
+        System.out.println("Title: " + campaign.getTitle());
+        System.out.println("From: " + campaign.getFromName() + " <" + campaign.getFromEmail() + ">");
+        System.out.println("Subject: " + campaign.getSubject());
+        System.out.println("Status: " + campaign.getStatus());
+        System.out.println("---");
+    }
+    
+} catch (SkrybeException e) {
+    System.err.println("API error: " + e.getMessage());
+}
+```
+
+## Exception Handling
+
+The SDK uses a proper exception hierarchy:
+
+```java
+try {
+    // SDK operations
+    List<SkrybeList> lists = sdk.getLists();
+    
+} catch (ValidationException e) {
+    // Input validation errors (invalid parameters, missing required fields, etc.)
+    System.err.println("Validation error: " + e.getMessage());
+    
+} catch (SkrybeException e) {
+    // API errors (network issues, authentication, server errors, etc.)
+    System.err.println("API error: " + e.getMessage());
+    
+} catch (IllegalArgumentException e) {
+    // Builder validation errors (caught at build time)
+    System.err.println("Invalid input: " + e.getMessage());
+}
+```
+
+## Model Classes
+
+The SDK provides type-safe model classes:
+
+| Class | Description | Key Properties |
+|-------|-------------|----------------|
+| `SkrybeList` | Represents a mailing list | `id`, `name` |
+| `Subscriber` | Represents a subscriber | `id`, `email`, `name`, `listId` |
+| `Campaign` | Represents a campaign | `id`, `title`, `fromName`, `fromEmail`, `subject`, `status` |
+| `CampaignRequest` | Builder for creating campaigns | All campaign fields with validation |
+| `CampaignResponse` | Response from campaign creation | `statusCode`, `response`, `success` |
+
+## Builder Pattern Benefits
+
+Instead of this old approach with 11 parameters:
+```java
+// ❌ Old way - error-prone and hard to remember parameter order
+sdk.createCampaign(title, fromName, fromEmail, replyTo, subject, 
+                   htmlText, listIds, plainText, sendCampaign, 
+                   trackOpens, trackClicks);
+```
+
+Use the modern builder pattern:
+```java
+// ✅ New way - self-documenting and validates input
+CampaignRequest request = CampaignRequest.builder()
+    .title("Newsletter")
+    .fromName("John")
+    .fromEmail("john@example.com")
+    .subject("Monthly Update")
+    .htmlText("<h1>Content</h1>")
+    .addListId("list-123")
+    .build();  // Validates required fields automatically!
+
+sdk.createCampaign(request);
+```
+
+## Migration from v1.x
+
+If you're upgrading from the older version, here's what changed:
+
+### Method Signatures
+- `getLists()` now returns `List<SkrybeList>` instead of `List<Map<String, Object>>`
+- `getSubscribers(listId)` now returns `List<Subscriber>` instead of `List<Map<String, Object>>`
+- `getCampaigns()` now returns `List<Campaign>` instead of `List<Map<String, Object>>`
+- `createCampaign(CampaignRequest)` replaces the 11-parameter version
+
+### Exception Handling
+- Methods now throw `SkrybeException` and `ValidationException` instead of `IOException`
+- Input validation happens at build/call time with helpful error messages
+
+### Backward Compatibility
+The old `createCampaign()` method with 11 parameters is still available but **deprecated**. It internally converts to the new API, so you get the benefits of validation while maintaining compatibility.
 
 ## Building Locally
-
-To build the SDK locally:
 
 ```bash
 mvn clean package

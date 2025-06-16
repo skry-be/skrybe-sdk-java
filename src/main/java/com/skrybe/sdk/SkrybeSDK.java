@@ -1,243 +1,414 @@
 package com.skrybe.sdk;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skrybe.sdk.exception.SkrybeException;
 import com.skrybe.sdk.exception.ValidationException;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
+import com.skrybe.sdk.model.*;
 
+import java.io.*;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.regex.Pattern;
+import org.json.*;
 
 public class SkrybeSDK {
-
-    private static final String DEFAULT_BASE_URL = "https://dashboard.skry.be";
-    private static final double MIN_REQUEST_INTERVAL = 0.1; // seconds
-    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\s]+@[^@\s]+\\.[^@\s]+$");
-
     private final String apiKey;
     private final String baseUrl;
-    private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
 
-    private long lastRequestTimeNanos = 0;
+    private static final String DEFAULT_BASE_URL = "https://dashboard.skry.be/api";
 
     public SkrybeSDK(String apiKey) {
-        this(apiKey, DEFAULT_BASE_URL, new RestTemplate());
+        this(apiKey, DEFAULT_BASE_URL);
     }
 
     public SkrybeSDK(String apiKey, String baseUrl) {
-        this(apiKey, baseUrl, new RestTemplate());
+        if (apiKey == null || apiKey.trim().isEmpty()) {
+            throw new IllegalArgumentException("API key cannot be null or empty");
+        }
+        if (baseUrl == null || baseUrl.trim().isEmpty()) {
+            throw new IllegalArgumentException("Base URL cannot be null or empty");
+        }
+        
+        this.apiKey = apiKey.trim();
+        this.baseUrl = baseUrl.trim();
+        this.httpClient = HttpClient.newHttpClient();
     }
 
-    public SkrybeSDK(String apiKey, String baseUrl, RestTemplate restTemplate) {
-        this.apiKey = Objects.requireNonNull(apiKey, "apiKey must not be null");
-        this.baseUrl = Optional.ofNullable(baseUrl).orElse(DEFAULT_BASE_URL);
-        this.restTemplate = Objects.requireNonNull(restTemplate, "restTemplate must not be null");
-        this.objectMapper = new ObjectMapper();
-    }
-
-    private MultiValueMap<String, String> createFormData(Map<String, Object> data) {
-        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-        formData.add("api_key", apiKey);
-        data.forEach((key, value) -> {
-            if (value != null) {
-                if (value instanceof Collection || value instanceof Map) {
-                    try {
-                        formData.add(key, objectMapper.writeValueAsString(value));
-                    } catch (JsonProcessingException e) {
-                        throw new SkrybeException("Failed to serialize field: " + key, e);
+    private String createFormData(Map<String, Object> data) {
+        StringBuilder formData = new StringBuilder();
+        for (Map.Entry<String, Object> entry : data.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            
+            // Handle List values (for arrays like to[])
+            if (value instanceof java.util.List) {
+                @SuppressWarnings("unchecked")
+                java.util.List<Object> list = (java.util.List<Object>) value;
+                for (Object item : list) {
+                    if (formData.length() > 0) {
+                        formData.append("&");
                     }
-                } else {
-                    formData.add(key, value.toString());
+                    String encodedKey = URLEncoder.encode(key, StandardCharsets.UTF_8);
+                    String encodedValue = URLEncoder.encode(String.valueOf(item), StandardCharsets.UTF_8);
+                    formData.append(encodedKey).append("=").append(encodedValue);
                 }
-            }
-        });
-        return formData;
-    }
-
-    private void handleRateLimit() {
-        long now = System.nanoTime();
-        double elapsed = (now - lastRequestTimeNanos) / 1_000_000_000.0;
-        if (elapsed < MIN_REQUEST_INTERVAL) {
-            try {
-                long sleepMillis = (long) ((MIN_REQUEST_INTERVAL - elapsed) * 1000);
-                Thread.sleep(sleepMillis);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+            } else {
+                // Handle regular key-value pairs
+                if (formData.length() > 0) {
+                    formData.append("&");
+                }
+                String encodedKey = URLEncoder.encode(key, StandardCharsets.UTF_8);
+                String encodedValue = URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8);
+                formData.append(encodedKey).append("=").append(encodedValue);
             }
         }
-        lastRequestTimeNanos = System.nanoTime();
+        return formData.toString();
     }
 
-    private Object makeRequest(String endpoint, Map<String, Object> data) {
-        handleRateLimit();
-        String url = baseUrl + endpoint;
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        headers.set("User-Agent", "SkrybeSDK-Java/1.0");
-
-        HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(createFormData(data), headers);
-
+    private HttpResponse<String> makeRequest(String endpoint, Map<String, Object> data) throws SkrybeException {
         try {
-            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-            String body = response.getBody();
-            if (body == null || body.isEmpty()) {
-                return Collections.emptyMap();
+            String url = baseUrl + endpoint;
+            
+            // Add API key to data
+            if (data == null) {
+                data = new HashMap<>();
             }
-            try {
-                return objectMapper.readValue(body, Map.class);
-            } catch (Exception ex) {
-                return body;
-            }
-        } catch (RestClientException e) {
-            throw new SkrybeException(e.getMessage(), e);
+            data.put("api_key", apiKey);
+
+            // Create request
+            String formData = createFormData(data);
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(formData))
+                .build();
+
+            // Send request
+            return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException e) {
+            throw new SkrybeException("Network error: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SkrybeException("Request was interrupted: " + e.getMessage(), e);
         }
     }
 
-    private void validateEmailOptions(Map<String, Object> options) {
-        List<String> required = Arrays.asList("fromName", "fromEmail", "subject", "htmlText");
-        List<String> errors = new ArrayList<>();
-
-        for (String field : required) {
-            if (!options.containsKey(field) || Objects.toString(options.get(field), "").trim().isEmpty()) {
-                errors.add("Field '" + field + "' is required");
-            }
+    /**
+     * Get all lists from Skrybe
+     * @return List of SkrybeList objects
+     * @throws SkrybeException if the API request fails
+     */
+    public List<SkrybeList> getLists() throws SkrybeException {
+        HttpResponse<String> response = makeRequest("/lists/get-lists.php", null);
+        
+        if (response.statusCode() != 200) {
+            throw new SkrybeException("API request failed with status code: " + response.statusCode());
         }
-
-        Object fromEmail = options.get("fromEmail");
-        if (fromEmail != null && !isValidEmail(fromEmail.toString())) {
-            throw new ValidationException(Collections.singletonMap("fromEmail", "Invalid email format"));
-        }
-
-        Object toField = options.get("to");
-        if (toField instanceof Collection<?> emails) {
-            for (Object email : emails) {
-                if (email != null && !isValidEmail(email.toString())) {
-                    throw new ValidationException(Collections.singletonMap("to", "Invalid email format: " + email));
+        
+        List<SkrybeList> result = new ArrayList<>();
+        String responseBody = response.body();
+        
+        try {
+            JSONObject responseObj = new JSONObject(responseBody);
+            for (String key : responseObj.keySet()) {
+                if (key.startsWith("list")) {
+                    JSONObject listObj = responseObj.getJSONObject(key);
+                    SkrybeList list = new SkrybeList();
+                    list.setId(listObj.optString("id"));
+                    list.setName(listObj.optString("name"));
+                    result.add(list);
                 }
             }
+        } catch (JSONException e) {
+            throw new SkrybeException("Failed to parse API response: " + e.getMessage(), e);
         }
+        
+        return result;
+    }
 
-        if (!errors.isEmpty()) {
-            throw new ValidationException(errors);
+    /**
+     * Get active subscribers from a specific list
+     * @param listId The ID of the list
+     * @return List of Subscriber objects
+     * @throws SkrybeException if the API request fails
+     * @throws ValidationException if listId is invalid
+     */
+    public List<Subscriber> getSubscribers(String listId) throws SkrybeException, ValidationException {
+        if (listId == null || listId.trim().isEmpty()) {
+            throw new ValidationException("List ID cannot be null or empty");
+        }
+        
+        Map<String, Object> data = new HashMap<>();
+        data.put("list_id", listId.trim());
+        
+        HttpResponse<String> response = makeRequest("/subscribers/get-active.php", data);
+        
+        if (response.statusCode() != 200) {
+            throw new SkrybeException("API request failed with status code: " + response.statusCode());
+        }
+        
+        List<Subscriber> result = new ArrayList<>();
+        String responseBody = response.body();
+        
+        try {
+            JSONObject responseObj = new JSONObject(responseBody);
+            for (String key : responseObj.keySet()) {
+                if (key.startsWith("subscriber")) {
+                    JSONObject subscriberObj = responseObj.getJSONObject(key);
+                    Subscriber subscriber = new Subscriber();
+                    subscriber.setId(subscriberObj.optString("id"));
+                    subscriber.setEmail(subscriberObj.optString("email"));
+                    subscriber.setName(subscriberObj.optString("name"));
+                    subscriber.setListId(listId);
+                    result.add(subscriber);
+                }
+            }
+        } catch (JSONException e) {
+            throw new SkrybeException("Failed to parse API response: " + e.getMessage(), e);
+        }
+        
+        return result;
+    }
+
+    /**
+     * Get the active subscriber count for a specific list
+     * @param listId The ID of the list
+     * @return The number of active subscribers in the list
+     * @throws SkrybeException if the API request fails
+     * @throws ValidationException if listId is invalid
+     */
+    public int getActiveSubscriberCount(String listId) throws SkrybeException, ValidationException {
+        if (listId == null || listId.trim().isEmpty()) {
+            throw new ValidationException("List ID cannot be null or empty");
+        }
+        
+        Map<String, Object> data = new HashMap<>();
+        data.put("list_id", listId.trim());
+        
+        HttpResponse<String> response = makeRequest("/subscribers/active-subscriber-count.php", data);
+        
+        if (response.statusCode() != 200) {
+            throw new SkrybeException("API request failed with status code: " + response.statusCode());
+        }
+        
+        String responseBody = response.body().trim();
+        
+        // Check for error responses
+        if (responseBody.toLowerCase().contains("error")) {
+            throw new SkrybeException("API Error: " + responseBody);
+        }
+        
+        try {
+            // The API returns a plain integer as text
+            return Integer.parseInt(responseBody);
+        } catch (NumberFormatException e) {
+            throw new SkrybeException("Invalid response format. Expected integer but got: " + responseBody, e);
         }
     }
 
-    private void validateCampaignOptions(Map<String, Object> options) {
-        List<String> required = Arrays.asList("fromName", "fromEmail", "title", "subject", "htmlText");
-        List<String> errors = new ArrayList<>();
+    /**
+     * Get all campaigns
+     * @return List of Campaign objects
+     * @throws SkrybeException if the API request fails
+     */
+    public List<Campaign> getCampaigns() throws SkrybeException {
+        HttpResponse<String> response = makeRequest("/campaigns/get-campaigns.php", null);
+        
+        if (response.statusCode() != 200) {
+            throw new SkrybeException("API request failed with status code: " + response.statusCode());
+        }
+        
+        List<Campaign> result = new ArrayList<>();
+        String responseBody = response.body();
+        
+        try {
+            JSONObject responseObj = new JSONObject(responseBody);
+            for (String key : responseObj.keySet()) {
+                if (key.startsWith("campaign")) {
+                    JSONObject campaignObj = responseObj.getJSONObject(key);
+                    Campaign campaign = new Campaign();
+                    campaign.setId(campaignObj.optString("id"));
+                    campaign.setTitle(campaignObj.optString("title"));
+                    campaign.setFromName(campaignObj.optString("from_name"));
+                    campaign.setFromEmail(campaignObj.optString("from_email"));
+                    campaign.setSubject(campaignObj.optString("subject"));
+                    campaign.setStatus(campaignObj.optString("status"));
+                    result.add(campaign);
+                }
+            }
+        } catch (JSONException e) {
+            throw new SkrybeException("Failed to parse API response: " + e.getMessage(), e);
+        }
+        
+        return result;
+    }
 
-        for (String field : required) {
-            if (!options.containsKey(field) || Objects.toString(options.get(field), "").trim().isEmpty()) {
-                errors.add("Field '" + field + "' is required");
+    /**
+     * Create a new campaign using the builder pattern
+     * @param request CampaignRequest object built using the builder pattern
+     * @return CampaignResponse with the result
+     * @throws SkrybeException if the API request fails
+     * @throws ValidationException if the request is invalid
+     */
+    public CampaignResponse createCampaign(CampaignRequest request) throws SkrybeException, ValidationException {
+        if (request == null) {
+            throw new ValidationException("Campaign request cannot be null");
+        }
+        
+        Map<String, Object> data = new HashMap<>();
+        data.put("title", request.getTitle());
+        data.put("from_name", request.getFromName());
+        data.put("from_email", request.getFromEmail());
+        data.put("reply_to", request.getReplyTo());
+        data.put("subject", request.getSubject());
+        data.put("html_text", request.getHtmlText());
+        data.put("list_ids", String.join(",", request.getListIds()));
+        
+        // Optional parameters
+        if (request.getPlainText() != null) {
+            data.put("plain_text", request.getPlainText());
+        }
+        data.put("send_campaign", request.isSendCampaign() ? "1" : "0");
+        data.put("track_opens", request.isTrackOpens() ? "1" : "0");
+        data.put("track_clicks", request.isTrackClicks() ? "1" : "0");
+        
+        HttpResponse<String> response = makeRequest("/campaigns/create.php", data);
+        return new CampaignResponse(response.statusCode(), response.body());
+    }
+
+    /**
+     * Send an individual email
+     * @param request EmailRequest object built using the builder pattern
+     * @return EmailResponse with the result
+     * @throws SkrybeException if the API request fails
+     * @throws ValidationException if the request is invalid
+     */
+    public EmailResponse sendEmail(EmailRequest request) throws SkrybeException, ValidationException {
+        if (request == null) {
+            throw new ValidationException("Email request cannot be null");
+        }
+        
+        Map<String, Object> data = new HashMap<>();
+        data.put("from_name", request.getFromName());
+        data.put("from_email", request.getFromEmail());
+        data.put("reply_to", request.getReplyTo());
+        data.put("subject", request.getSubject());
+        data.put("html_text", request.getHtmlText());
+        
+        // Optional plain text
+        if (request.getPlainText() != null && !request.getPlainText().trim().isEmpty()) {
+            data.put("plain_text", request.getPlainText());
+        }
+        
+        // Recipients - format as JSON array (required by Skrybe API)
+        if (!request.getTo().isEmpty()) {
+            try {
+                JSONObject toArray = new JSONObject();
+                // Create JSON array format: ["email1", "email2", ...]
+                StringBuilder jsonArray = new StringBuilder("[");
+                for (int i = 0; i < request.getTo().size(); i++) {
+                    if (i > 0) jsonArray.append(",");
+                    jsonArray.append("\"").append(request.getTo().get(i)).append("\"");
+                }
+                jsonArray.append("]");
+                data.put("to", jsonArray.toString());
+            } catch (Exception e) {
+                throw new ValidationException("Failed to format recipient emails: " + e.getMessage());
             }
         }
-
-        Object fromEmail = options.get("fromEmail");
-        if (fromEmail == null || !isValidEmail(fromEmail.toString())) {
-            throw new ValidationException(Collections.singletonMap("fromEmail", "Invalid email format"));
+        
+        // Recipient variables as JSON string if provided
+        if (!request.getRecipientVariables().isEmpty()) {
+            try {
+                JSONObject recipientVars = new JSONObject();
+                for (Map.Entry<String, Map<String, Object>> entry : request.getRecipientVariables().entrySet()) {
+                    JSONObject vars = new JSONObject();
+                    for (Map.Entry<String, Object> varEntry : entry.getValue().entrySet()) {
+                        vars.put(varEntry.getKey(), varEntry.getValue());
+                    }
+                    recipientVars.put(entry.getKey(), vars);
+                }
+                data.put("recipient-variables", recipientVars.toString());
+            } catch (JSONException e) {
+                throw new ValidationException("Invalid recipient variables format: " + e.getMessage());
+            }
         }
+        
+        // Optional list IDs
+        if (!request.getListIds().isEmpty()) {
+            data.put("list_ids", String.join(",", request.getListIds()));
+        }
+        
+        // Optional query string
+        if (request.getQueryString() != null && !request.getQueryString().trim().isEmpty()) {
+            data.put("query_string", request.getQueryString());
+        }
+        
+        // Tracking options
+        data.put("track_opens", request.isTrackOpens() ? "1" : "0");
+        data.put("track_clicks", request.isTrackClicks() ? "1" : "0");
+        
+        // Optional scheduling
+        if (request.getScheduleDateTime() != null && !request.getScheduleDateTime().trim().isEmpty()) {
+            data.put("schedule_date_time", request.getScheduleDateTime());
+            
+            if (request.getScheduleTimezone() != null && !request.getScheduleTimezone().trim().isEmpty()) {
+                data.put("schedule_timezone", request.getScheduleTimezone());
+            }
+        }
+        
+        HttpResponse<String> response = makeRequest("/emails/send.php", data);
+        return new EmailResponse(response.statusCode(), response.body());
+    }
 
-        if (!errors.isEmpty()) {
-            throw new ValidationException(errors);
+    /**
+     * @deprecated Use createCampaign(CampaignRequest) instead
+     */
+    @Deprecated
+    public Map<String, Object> createCampaign(
+            String title,
+            String fromName,
+            String fromEmail,
+            String replyTo,
+            String subject,
+            String htmlText,
+            String listIds,
+            String plainText,
+            boolean sendCampaign,
+            boolean trackOpens,
+            boolean trackClicks) throws SkrybeException {
+        
+        // Convert to new API internally
+        try {
+            CampaignRequest.Builder builder = CampaignRequest.builder()
+                .title(title)
+                .fromName(fromName)
+                .fromEmail(fromEmail)
+                .replyTo(replyTo)
+                .subject(subject)
+                .htmlText(htmlText)
+                .sendCampaign(sendCampaign)
+                .trackOpens(trackOpens)
+                .trackClicks(trackClicks);
+            
+            if (plainText != null) {
+                builder.plainText(plainText);
+            }
+            
+            if (listIds != null && !listIds.trim().isEmpty()) {
+                builder.listIds(Arrays.asList(listIds.split(",")));
+            }
+            
+            CampaignResponse response = createCampaign(builder.build());
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("status_code", response.getStatusCode());
+            result.put("response", response.getResponse());
+            return result;
+        } catch (Exception e) {
+            throw new SkrybeException("Campaign creation failed: " + e.getMessage(), e);
         }
     }
-
-    private boolean isValidEmail(String email) {
-        return EMAIL_PATTERN.matcher(email).matches();
-    }
-
-    // Public API methods
-
-    public Object sendEmail(Map<String, Object> options) {
-        validateEmailOptions(options);
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("from_name", options.get("fromName"));
-        payload.put("from_email", options.get("fromEmail"));
-        payload.put("reply_to", options.get("replyTo"));
-        payload.put("subject", options.get("subject"));
-        payload.put("html_text", options.get("htmlText"));
-        payload.put("plain_text", options.get("plainText"));
-        payload.put("to", options.get("to"));
-        payload.put("recipient-variables", options.get("recipientVariables"));
-
-        Object listIds = options.get("listIds");
-        if (listIds instanceof Collection<?> ids) {
-            payload.put("list_ids", String.join(",", ids.stream().map(Object::toString).toList()));
-        }
-
-        payload.put("query_string", options.get("queryString"));
-        payload.put("track_opens", options.get("trackOpens"));
-        payload.put("track_clicks", options.get("trackClicks"));
-        payload.put("schedule_date_time", options.get("scheduleDateTime"));
-        payload.put("schedule_timezone", options.get("scheduleTimezone"));
-        return makeRequest("/api/emails/send.php", payload);
-    }
-
-    public Object createCampaign(Map<String, Object> options) {
-        validateCampaignOptions(options);
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("from_name", options.get("fromName"));
-        payload.put("from_email", options.get("fromEmail"));
-        payload.put("reply_to", options.get("replyTo"));
-        payload.put("title", options.get("title"));
-        payload.put("subject", options.get("subject"));
-        payload.put("html_text", options.get("htmlText"));
-        payload.put("plain_text", options.get("plainText"));
-        payload.put("list_ids", options.get("listIds"));
-        payload.put("segment_ids", options.get("segmentIds"));
-        payload.put("exclude_list_ids", options.get("excludeListIds"));
-        payload.put("exclude_segments_ids", options.get("excludeSegmentIds"));
-        payload.put("query_string", options.get("queryString"));
-        payload.put("track_opens", options.get("trackOpens"));
-        payload.put("track_clicks", options.get("trackClicks"));
-        payload.put("send_campaign", options.get("sendCampaign"));
-        payload.put("schedule_date_time", options.get("scheduleDateTime"));
-        payload.put("schedule_timezone", options.get("scheduleTimezone"));
-        return makeRequest("/api/campaigns/create.php", payload);
-    }
-
-    public Object getLists(boolean includeHidden) {
-        return makeRequest("/api/lists/get-lists.php", Map.of(
-                "include_hidden", includeHidden ? "yes" : "no"
-        ));
-    }
-
-    public Object getCampaigns(Map<String, Object> options) {
-        if (options == null) {
-            options = Collections.emptyMap();
-        }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("page", options.getOrDefault("page", 1));
-        payload.put("limit", options.getOrDefault("limit", 10));
-        payload.put("status", options.get("status"));
-        return makeRequest("/api/campaigns/get-campaigns.php", payload);
-    }
-
-    public Object getSubscribers(String listId, Map<String, Object> options) {
-        if (options == null) {
-            options = Collections.emptyMap();
-        }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("list_id", listId);
-        payload.put("page", options.getOrDefault("page", 1));
-        payload.put("limit", options.getOrDefault("limit", 10));
-        payload.put("status", options.get("status"));
-        return makeRequest("/api/subscribers/get-subscribers.php", payload);
-    }
-
-    public Object addSubscriber(String listId, Map<String, Object> subscriberData) {
-        Map<String, Object> payload = new HashMap<>(subscriberData);
-        payload.put("list_id", listId);
-        return makeRequest("/api/subscribers/add.php", payload);
-    }
-} 
+}

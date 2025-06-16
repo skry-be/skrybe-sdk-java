@@ -4,6 +4,11 @@ public class ValidationException extends SkrybeException {
 
     private final Object errors;
 
+    public ValidationException(String message) {
+        super(message);
+        this.errors = null;
+    }
+
     public ValidationException(Object errors) {
         super("Validation failed");
         this.errors = errors;
