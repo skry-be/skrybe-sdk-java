@@ -4,13 +4,43 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.example</groupId>
-    <artifactId>skrybe-test</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <groupId>com.skrybe</groupId>
+    <artifactId>skrybe-sdk-java</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    
+    <name>Skrybe Java SDK</name>
+    <description>Professional Java SDK for Skrybe Email Marketing Platform - Modern, type-safe, and feature-complete</description>
+    <url>https://github.com/skry-be/skrybe-sdk-java</url>
+    
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Skrybe Team</name>
+            <email>support@skrybe.com</email>
+            <organization>Skrybe</organization>
+            <organizationUrl>https://skrybe.com</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/skry-be/skrybe-sdk-java.git</connection>
+        <developerConnection>scm:git:ssh://github.com:skry-be/skrybe-sdk-java.git</developerConnection>
+        <url>https://github.com/skry-be/skrybe-sdk-java/tree/main</url>
+    </scm>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>11</maven.compiler.release>
     </properties>
 
     <repositories>
@@ -34,13 +64,19 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
-            <version>5.8.2</version>
+            <version>5.10.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.8.2</version>
+            <version>5.10.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <version>5.10.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -49,9 +85,112 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <release>11</release>
+                    <compilerArgs>
+                        <arg>-Xlint:all</arg>
+                        <arg>-Werror</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
+                <version>3.1.2</version>
+                <configuration>
+                    <useSystemClassLoader>false</useSystemClassLoader>
+                </configuration>
+            </plugin>
+            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <source>11</source>
+                    <detectJavaApiLink>false</detectJavaApiLink>
+                    <doclint>none</doclint>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                        </manifest>
+                        <manifestEntries>
+                            <Built-By>Skrybe SDK</Built-By>
+                            <Build-Jdk>${java.version}</Build-Jdk>
+                            <Implementation-Title>${project.name}</Implementation-Title>
+                            <Implementation-Version>${project.version}</Implementation-Version>
+                            <Implementation-Vendor>Skrybe</Implementation-Vendor>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
+                    </archive>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/skry-be/skrybe-sdk-java</url>
+        </repository>
+    </distributionManagement>
 </project> 
