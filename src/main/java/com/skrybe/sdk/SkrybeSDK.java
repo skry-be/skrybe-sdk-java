@@ -70,7 +70,7 @@ public class SkrybeSDK {
     private HttpResponse<String> makeRequest(String endpoint, Map<String, Object> data) throws SkrybeException {
         try {
             String url = baseUrl + endpoint;
-            
+
             // Add API key to data
             if (data == null) {
                 data = new HashMap<>();
@@ -83,6 +83,30 @@ public class SkrybeSDK {
                 .uri(URI.create(url))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString(formData))
+                .build();
+
+            // Send request
+            return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException e) {
+            throw new SkrybeException("Network error: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SkrybeException("Request was interrupted: " + e.getMessage(), e);
+        }
+    }
+
+    private HttpResponse<String> makeJsonRequest(String endpoint, JSONObject jsonBody) throws SkrybeException {
+        try {
+            String url = baseUrl + endpoint;
+
+            // Add API key to JSON body
+            jsonBody.put("api_key", apiKey);
+
+            // Create request with JSON content type
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody.toString()))
                 .build();
 
             // Send request
@@ -361,6 +385,51 @@ public class SkrybeSDK {
         
         HttpResponse<String> response = makeRequest("/emails/send.php", data);
         return new EmailResponse(response.statusCode(), response.body());
+    }
+
+    /**
+     * Send a transactional email (OTP, password reset, alerts, etc.)
+     *
+     * Unlike sendEmail(), transactional emails are delivered immediately and not queued.
+     * This is ideal for time-sensitive communications like one-time passcodes.
+     *
+     * @param request TransactionalEmailRequest object built using the builder pattern
+     * @return TransactionalEmailResponse with the result
+     * @throws SkrybeException if the API request fails
+     * @throws ValidationException if the request is invalid
+     */
+    public TransactionalEmailResponse sendTransactionalEmail(TransactionalEmailRequest request) throws SkrybeException, ValidationException {
+        if (request == null) {
+            throw new ValidationException("Transactional email request cannot be null");
+        }
+
+        JSONObject jsonBody = new JSONObject();
+        jsonBody.put("to_email", request.getToEmail());
+        jsonBody.put("subject", request.getSubject());
+
+        // Add html_body if provided
+        if (request.getHtmlBody() != null && !request.getHtmlBody().trim().isEmpty()) {
+            jsonBody.put("html_body", request.getHtmlBody());
+        }
+
+        // Add plain_body if provided
+        if (request.getPlainBody() != null && !request.getPlainBody().trim().isEmpty()) {
+            jsonBody.put("plain_body", request.getPlainBody());
+        }
+
+        // Optional overrides (uses brand defaults if omitted)
+        if (request.getFromName() != null && !request.getFromName().trim().isEmpty()) {
+            jsonBody.put("from_name", request.getFromName());
+        }
+        if (request.getFromEmail() != null && !request.getFromEmail().trim().isEmpty()) {
+            jsonBody.put("from_email", request.getFromEmail());
+        }
+        if (request.getReplyTo() != null && !request.getReplyTo().trim().isEmpty()) {
+            jsonBody.put("reply_to", request.getReplyTo());
+        }
+
+        HttpResponse<String> response = makeJsonRequest("/emails/send-transactional.php", jsonBody);
+        return new TransactionalEmailResponse(response.statusCode(), response.body());
     }
 
     /**

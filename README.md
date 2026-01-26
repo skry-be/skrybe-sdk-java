@@ -9,6 +9,7 @@ A modern, type-safe Java SDK for interacting with the Skrybe email marketing pla
 ## ✨ Features
 
 - **📧 Email Sending**: Send individual emails with rich HTML content and recipient variables
+- **⚡ Transactional Emails**: Immediate delivery for OTP, password resets, alerts, and other time-sensitive messages
 - **📊 Campaign Management**: Create and manage email campaigns with builder pattern
 - **📋 List Management**: Retrieve and work with mailing lists
 - **👥 Subscriber Management**: Get subscribers and active subscriber counts
@@ -111,6 +112,51 @@ try {
     System.err.println("API error: " + e.getMessage());
 }
 ```
+
+### ⚡ Send Transactional Emails (NEW!)
+
+For time-sensitive, one-off emails like OTP codes, password resets, or alerts that need immediate delivery:
+
+```java
+import com.skrybe.sdk.model.TransactionalEmailRequest;
+import com.skrybe.sdk.model.TransactionalEmailResponse;
+
+try {
+    // Create transactional email - delivered immediately, not queued
+    TransactionalEmailRequest request = TransactionalEmailRequest.builder()
+        .toEmail("user@example.com")
+        .subject("Your one-time passcode")
+        .htmlBody("<p>Your code is <strong>384092</strong>. It expires in 5 minutes.</p>")
+        .plainBody("Your code is 384092. It expires in 5 minutes.")
+        // Optional overrides (uses brand defaults if omitted)
+        .fromName("Skrybe Security")
+        .fromEmail("no-reply@yourdomain.com")
+        .replyTo("support@yourdomain.com")
+        .build();
+
+    TransactionalEmailResponse response = sdk.sendTransactionalEmail(request);
+
+    if (response.isSuccess()) {
+        System.out.println("Transactional email sent: " + response.getMessage());
+    } else {
+        System.err.println("Failed: " + response.getMessage());
+        if (response.getErrorInfo() != null) {
+            System.err.println("Details: " + response.getErrorInfo());
+        }
+    }
+
+} catch (ValidationException e) {
+    System.err.println("Validation error: " + e.getMessage());
+} catch (SkrybeException e) {
+    System.err.println("API error: " + e.getMessage());
+}
+```
+
+**Key differences from regular email sending:**
+- Single recipient only (`toEmail` vs `to` array)
+- Immediate delivery (no scheduling, no queuing)
+- Uses JSON body (not form-encoded)
+- Brand defaults for `fromName`, `fromEmail`, `replyTo` if not specified
 
 ### 📋 Manage Lists
 
@@ -272,6 +318,8 @@ The SDK provides type-safe model classes:
 | `CampaignResponse` | Response from campaign creation | `statusCode`, `response`, `success` |
 | `EmailRequest` | Builder for sending emails | All email fields with validation |
 | `EmailResponse` | Response from email sending | `statusCode`, `response`, `success`, `scheduled` |
+| `TransactionalEmailRequest` | Builder for transactional emails | `toEmail`, `subject`, `htmlBody`, `plainBody`, optional overrides |
+| `TransactionalEmailResponse` | Response from transactional sends | `statusCode`, `success`, `message`, `errorInfo`, `errorCode` |
 
 ## 🏗️ Builder Pattern Benefits
 
@@ -304,6 +352,7 @@ If you're upgrading from the older version, here's what changed:
 
 ### 🆕 New Features
 - **Email Sending**: `sendEmail(EmailRequest)` - Send individual emails with rich content
+- **Transactional Emails**: `sendTransactionalEmail(TransactionalEmailRequest)` - Immediate delivery for OTP, alerts, etc.
 - **Active Subscriber Count**: `getActiveSubscriberCount(listId)` - Get subscriber counts efficiently
 
 ### 📝 Method Signatures
