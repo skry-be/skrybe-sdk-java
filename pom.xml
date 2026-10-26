@@ -4,15 +4,20 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.skrybe</groupId>
+    <!--
+      Distributed through JitPack, which builds from the git tag and serves the
+      artifact as com.github.skry-be:skrybe-sdk-java:<tag>. The groupId matches
+      that so a local `mvn install` resolves under the same coordinates.
+    -->
+    <groupId>com.github.skry-be</groupId>
     <artifactId>skrybe-sdk-java</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
     <packaging>jar</packaging>
-    
+
     <name>Skrybe Java SDK</name>
-    <description>Professional Java SDK for Skrybe Email Marketing Platform - Modern, type-safe, and feature-complete</description>
+    <description>The official Java SDK for the Skrybe email marketing API.</description>
     <url>https://github.com/skry-be/skrybe-sdk-java</url>
-    
+
     <licenses>
         <license>
             <name>MIT License</name>
@@ -23,60 +28,38 @@
 
     <developers>
         <developer>
-            <name>Skrybe Team</name>
-            <email>support@skrybe.com</email>
+            <name>Skrybe</name>
             <organization>Skrybe</organization>
-            <organizationUrl>https://skrybe.com</organizationUrl>
+            <organizationUrl>https://skry.be</organizationUrl>
         </developer>
     </developers>
 
     <scm>
         <connection>scm:git:git://github.com/skry-be/skrybe-sdk-java.git</connection>
-        <developerConnection>scm:git:ssh://github.com:skry-be/skrybe-sdk-java.git</developerConnection>
+        <developerConnection>scm:git:ssh://git@github.com/skry-be/skrybe-sdk-java.git</developerConnection>
         <url>https://github.com/skry-be/skrybe-sdk-java/tree/main</url>
     </scm>
 
     <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>11</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <jackson.version>2.17.2</jackson.version>
+        <junit.version>5.10.3</junit.version>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>jitpack.io</id>
-            <url>https://jitpack.io</url>
-        </repository>
-    </repositories>
-
     <dependencies>
+        <!-- The one runtime dependency; it brings jackson-core and jackson-annotations. -->
         <dependency>
-            <groupId>com.github.skry-be</groupId>
-            <artifactId>skrybe-sdk-java</artifactId>
-            <version>v1.0.0</version>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.json</groupId>
-            <artifactId>json</artifactId>
-            <version>20231013</version>
-        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>5.10.0</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.10.0</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-params</artifactId>
-            <version>5.10.0</version>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -86,29 +69,26 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
+                <version>3.13.0</version>
                 <configuration>
                     <release>11</release>
                     <compilerArgs>
-                        <arg>-Xlint:all</arg>
+                        <arg>-Xlint:all,-processing,-options</arg>
                         <arg>-Werror</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>
-            
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.1.2</version>
-                <configuration>
-                    <useSystemClassLoader>false</useSystemClassLoader>
-                </configuration>
+                <version>3.3.1</version>
             </plugin>
-            
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>3.3.0</version>
+                <version>3.3.1</version>
                 <executions>
                     <execution>
                         <id>attach-sources</id>
@@ -118,15 +98,15 @@
                     </execution>
                 </executions>
             </plugin>
-            
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>3.6.0</version>
+                <version>3.8.0</version>
                 <configuration>
-                    <source>11</source>
-                    <detectJavaApiLink>false</detectJavaApiLink>
-                    <doclint>none</doclint>
+                    <release>11</release>
+                    <doclint>all,-missing</doclint>
+                    <excludePackageNames>com.skrybe.sdk.internal</excludePackageNames>
                 </configuration>
                 <executions>
                     <execution>
@@ -137,11 +117,11 @@
                     </execution>
                 </executions>
             </plugin>
-            
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.3.0</version>
+                <version>3.4.2</version>
                 <configuration>
                     <archive>
                         <manifest>
@@ -149,48 +129,11 @@
                             <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
                         </manifest>
                         <manifestEntries>
-                            <Built-By>Skrybe SDK</Built-By>
-                            <Build-Jdk>${java.version}</Build-Jdk>
-                            <Implementation-Title>${project.name}</Implementation-Title>
-                            <Implementation-Version>${project.version}</Implementation-Version>
-                            <Implementation-Vendor>Skrybe</Implementation-Vendor>
+                            <Automatic-Module-Name>com.skrybe.sdk</Automatic-Module-Name>
                         </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
-            
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <version>3.6.0</version>
-                <configuration>
-                    <descriptorRefs>
-                        <descriptorRef>jar-with-dependencies</descriptorRef>
-                    </descriptorRefs>
-                    <archive>
-                        <manifest>
-                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-                        </manifest>
-                    </archive>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>make-assembly</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
-
-    <distributionManagement>
-        <repository>
-            <id>github</id>
-            <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/skry-be/skrybe-sdk-java</url>
-        </repository>
-    </distributionManagement>
-</project> 
+</project>

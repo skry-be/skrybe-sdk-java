@@ -1,59 +1,43 @@
 package com.skrybe.sdk.model;
 
-public class Subscriber {
-    private String id;
+import java.util.Collections;
+import java.util.Map;
+
+/**
+ * One subscriber of a list.
+ */
+public class Subscriber extends ApiObject {
     private String email;
     private String name;
-    private String listId;
+    private String status;
+    private Long joinedAt;
+    private Map<String, String> customFields;
 
-    public Subscriber() {}
-
-    public Subscriber(String id, String email, String name, String listId) {
-        this.id = id;
-        this.email = email;
-        this.name = name;
-        this.listId = listId;
+    Subscriber() {
     }
 
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
+    /** @return the address */
     public String getEmail() {
         return email;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
+    /** @return the subscriber's name */
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    /** @return active, unconfirmed, unsubscribed, bounced or complained */
+    public String getStatus() {
+        return status;
     }
 
-    public String getListId() {
-        return listId;
+    /** @return when they joined, in Unix seconds, or null */
+    public Long getJoinedAt() {
+        return joinedAt;
     }
 
-    public void setListId(String listId) {
-        this.listId = listId;
+    /** @return custom field values by field name, in the list's order. Dates are YYYY-MM-DD; empty values are null */
+    public Map<String, String> getCustomFields() {
+        return customFields == null ? Collections.emptyMap() : Collections.unmodifiableMap(customFields);
     }
-
-    @Override
-    public String toString() {
-        return "Subscriber{" +
-                "id='" + id + '\'' +
-                ", email='" + email + '\'' +
-                ", name='" + name + '\'' +
-                ", listId='" + listId + '\'' +
-                '}';
-    }
-} 
+}
