@@ -1,37 +1,22 @@
 package com.skrybe.sdk.model;
 
-public class SkrybeList {
+/**
+ * A list: its id and name.
+ */
+public class SkrybeList extends ApiObject {
     private String id;
     private String name;
 
-    public SkrybeList() {}
-
-    public SkrybeList(String id, String name) {
-        this.id = id;
-        this.name = name;
+    SkrybeList() {
     }
 
+    /** @return the list id: an encrypted value, not the number in the dashboard URL. Pass it back as given wherever a list id is wanted */
     public String getId() {
         return id;
     }
 
-    public void setId(String id) {
-        this.id = id;
-    }
-
+    /** @return the list's name */
     public String getName() {
         return name;
     }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    @Override
-    public String toString() {
-        return "SkrybeList{" +
-                "id='" + id + '\'' +
-                ", name='" + name + '\'' +
-                '}';
-    }
-} 
+}
